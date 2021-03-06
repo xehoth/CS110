@@ -1,0 +1,1 @@
+rm test test.o staticlist liblist.a liblist.so dynamiclist doubll2d.o
