@@ -58,29 +58,25 @@ BOOL blockchain_node_verify(blk_t *node, blk_t *prev_node, hash_func func) {
 #define ALIGNED(x) __attribute__ ((aligned(x)))
 #define L1_CACHE_LINE 64
 
-static int any_find_flag;
+static int any_find_flag, diff_q, diff_m;
+static hash_func *hash_func_thread;
+static unsigned char one_diff[HASH_BLOCK_SIZE];
 
-typedef struct _thread_data {
-  blkh_t header;
+typedef struct ALIGNED(L1_CACHE_LINE) _thread_data {
+  blkh_t ALIGNED(L1_CACHE_LINE) header;
   unsigned char hash_buf[HASH_BLOCK_SIZE];
-  unsigned char one_diff[HASH_BLOCK_SIZE];
-  int diff_q;
-  int diff_m;
   int find_flag;
-  int id;
-  hash_func *hash_func;
 } ThreadData;
 
 ThreadData threadData[THREAD_NUMS];
 
 void *mine_work_thread(void *thData) {
   ThreadData *data = (ThreadData *)thData;
-  data->header.nonce = data->id;
   for (;;) {
-    blockchain_node_hash((blk_t *)data, data->hash_buf, data->hash_func);
-    if (any_find_flag || ((!memcmp(data->hash_buf, data->one_diff, sizeof(unsigned char) * data->diff_q)) &&
-        memcmp(&data->hash_buf[data->diff_q], &data->one_diff[data->diff_q],
-               sizeof(unsigned char) * (HASH_BLOCK_SIZE - data->diff_q)) <= 0)) {
+    blockchain_node_hash((blk_t *)data, data->hash_buf, hash_func_thread);
+    if (any_find_flag || ((!memcmp(data->hash_buf, one_diff, sizeof(unsigned char) * diff_q)) &&
+        memcmp(&data->hash_buf[diff_q], &one_diff[diff_q],
+               sizeof(unsigned char) * (HASH_BLOCK_SIZE - diff_q)) <= 0)) {
       data->find_flag = 1;
       any_find_flag = 1;
       break;
@@ -120,17 +116,18 @@ void blockchain_node_mine(blk_t *node, unsigned char hash_buf[HASH_BLOCK_SIZE],
   ThreadData threadData[THREAD_NUMS];
   
   any_find_flag = 0;
+  diff_q = diff / 8;
+  diff_m = diff % 8;
+  hash_func_thread = func;
+  
+  memset(one_diff, 0xFF, sizeof(unsigned char) * HASH_BLOCK_SIZE);
+  memset(one_diff, 0, sizeof(unsigned char) * diff_q);
+  one_diff[diff_q] = ((uint8_t)0xFF) >> diff_m;
   
   for (i = 0; i < THREAD_NUMS; ++i) {
     memcpy(&threadData[i].header, &node->header, sizeof(blkh_t));
-    threadData[i].diff_q = diff / 8;
-    threadData[i].diff_m = diff % 8;
-    memset(threadData[i].one_diff, 0xFF, sizeof(unsigned char) * HASH_BLOCK_SIZE);
-    memset(threadData[i].one_diff, 0, sizeof(unsigned char) * threadData[i].diff_q);
-    threadData[i].one_diff[threadData[i].diff_q] = ((uint8_t)0xFF) >> threadData[i].diff_m;
+    threadData[i].header.nonce = i;
     threadData[i].find_flag = 0;
-    threadData[i].id = i;
-    threadData[i].hash_func = func;
     pthread_create(&threads[i], NULL, mine_work_thread, (void *)&threadData[i]);
   }
   for (i = 0; i < THREAD_NUMS; ++i) pthread_join(threads[i], NULL);

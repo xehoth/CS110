@@ -55,37 +55,33 @@ BOOL blockchain_node_verify(blk_t *node, blk_t *prev_node, hash_func func) {
 #define MULTI_THREAD
 #ifdef MULTI_THREAD
 #define THREAD_NUMS 2
-#define ALIGNED(x) __attribute__ ((aligned(x)))
-#define L1_CACHE_LINE 64
 
+static uint64_t bonce_buffer[THREAD_NUMS];
+static unsigned char one_diff_thread_buffer[HASH_BLOCK_SIZE];
+static unsigned char hash_buf_thread[THREAD_NUMS][HASH_BLOCK_SIZE];
+static int find_flag_thread[THREAD_NUMS];
 static int any_find_flag;
-
+static int diff_q_thread;
+static int diff_m_thread;
+static hash_func *hash_func_thread;
 typedef struct _thread_data {
   blkh_t header;
-  unsigned char hash_buf[HASH_BLOCK_SIZE];
-  unsigned char one_diff[HASH_BLOCK_SIZE];
-  int diff_q;
-  int diff_m;
-  int find_flag;
   int id;
-  hash_func *hash_func;
 } ThreadData;
 
-ThreadData threadData[THREAD_NUMS];
-
-void *mine_work_thread(void *thData) {
-  ThreadData *data = (ThreadData *)thData;
-  data->header.nonce = data->id;
+void *mine_work_thread(void *data) {
+  const int id = ((ThreadData *)data)->id;
+  bonce_buffer[id] = id;
   for (;;) {
-    blockchain_node_hash((blk_t *)data, data->hash_buf, data->hash_func);
-    if (any_find_flag || ((!memcmp(data->hash_buf, data->one_diff, sizeof(unsigned char) * data->diff_q)) &&
-        memcmp(&data->hash_buf[data->diff_q], &data->one_diff[data->diff_q],
-               sizeof(unsigned char) * (HASH_BLOCK_SIZE - data->diff_q)) <= 0)) {
-      data->find_flag = 1;
+    blockchain_node_hash((blk_t *)data, hash_buf_thread[id], hash_func_thread);
+    if (any_find_flag || ((!memcmp(hash_buf_thread[id], one_diff_thread_buffer, sizeof(unsigned char) * diff_q_thread)) &&
+        memcmp(&hash_buf_thread[id][diff_q_thread], &one_diff_thread_buffer[diff_q_thread],
+               sizeof(unsigned char) * (HASH_BLOCK_SIZE - diff_q_thread)) <= 0)) {
+      find_flag_thread[id] = 1;
       any_find_flag = 1;
       break;
     }
-    data->header.nonce += THREAD_NUMS;
+    ((blkh_t *)data)->nonce += THREAD_NUMS;
   }
   pthread_exit(NULL);
 }
@@ -118,26 +114,24 @@ void blockchain_node_mine(blk_t *node, unsigned char hash_buf[HASH_BLOCK_SIZE],
   int i;
   pthread_t threads[THREAD_NUMS];
   ThreadData threadData[THREAD_NUMS];
-  
+  diff_q_thread = diff / 8;
+  diff_m_thread = diff % 8;
+  memset(one_diff_thread_buffer, 0xFF, sizeof(unsigned char) * HASH_BLOCK_SIZE);
+  memset(one_diff_thread_buffer, 0, sizeof(unsigned char) * diff_q_thread);
+  one_diff_thread_buffer[diff_q_thread] = ((uint8_t)0xFF) >> diff_m_thread;
   any_find_flag = 0;
-  
+  hash_func_thread = func;
+  memset(find_flag_thread, 0, sizeof(find_flag_thread));
   for (i = 0; i < THREAD_NUMS; ++i) {
     memcpy(&threadData[i].header, &node->header, sizeof(blkh_t));
-    threadData[i].diff_q = diff / 8;
-    threadData[i].diff_m = diff % 8;
-    memset(threadData[i].one_diff, 0xFF, sizeof(unsigned char) * HASH_BLOCK_SIZE);
-    memset(threadData[i].one_diff, 0, sizeof(unsigned char) * threadData[i].diff_q);
-    threadData[i].one_diff[threadData[i].diff_q] = ((uint8_t)0xFF) >> threadData[i].diff_m;
-    threadData[i].find_flag = 0;
     threadData[i].id = i;
-    threadData[i].hash_func = func;
     pthread_create(&threads[i], NULL, mine_work_thread, (void *)&threadData[i]);
   }
   for (i = 0; i < THREAD_NUMS; ++i) pthread_join(threads[i], NULL);
   for (i = 0; i < THREAD_NUMS; ++i) {
-    if (threadData[i].find_flag) {
+    if (find_flag_thread[i]) {
       node->header.nonce = threadData[i].header.nonce;
-      memcpy(node->hash, threadData[i].hash_buf, sizeof(unsigned char) * HASH_BLOCK_SIZE);
+      memcpy(node->hash, hash_buf_thread[i], sizeof(unsigned char) * HASH_BLOCK_SIZE);
       break;
     }
   }

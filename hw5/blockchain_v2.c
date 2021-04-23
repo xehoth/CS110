@@ -60,8 +60,8 @@ BOOL blockchain_node_verify(blk_t *node, blk_t *prev_node, hash_func func) {
 
 static int any_find_flag;
 
-typedef struct _thread_data {
-  blkh_t header;
+typedef struct ALIGNED(L1_CACHE_LINE) _thread_data {
+  blkh_t ALIGNED(L1_CACHE_LINE) header;
   unsigned char hash_buf[HASH_BLOCK_SIZE];
   unsigned char one_diff[HASH_BLOCK_SIZE];
   int diff_q;

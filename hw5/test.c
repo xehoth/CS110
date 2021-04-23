@@ -12,6 +12,12 @@ ShanghaiTech University
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <x86intrin.h>
+
+uint64_t rdtsc(){
+  return __rdtsc();
+}
+
 
 #define DELIMIT()                                                              \
   printf("-------------------------------------------------------------------" \
@@ -120,11 +126,11 @@ int main(int argc, char *argv[]) {
   printf("Done.\n");
 
   printf("Mining a block with difficulty %d... ", diff);
-  tstart = clock();
+  tstart = rdtsc();
   blockchain_node_mine(&blk_node, (unsigned char *)hash_buff, diff,
                        blockchain_do_hash);
-  tend = clock();
-  printf("Done in %f sec.\n", TIME_SPENT(tstart, tend));
+  tend = rdtsc();
+  printf("cpu clock %f\n", TIME_SPENT(tstart, tend));
 
   printf("Testing if the block is good... ");
   if (blockchain_node_verify(&blk_node, &prev_blk_node, blockchain_do_hash))
