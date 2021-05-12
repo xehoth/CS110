@@ -8,12 +8,8 @@
 
 # Specify the compiler and flags that will be used.
 CC=gcc
-OPTIMIZES=-Ofast -march=native -march=native -mtune=native -flto -fuse-linker-plugin \
-					# -finline -fgcse -fgcse-lm -fipa-sra -ftree-pre -ftree-vrp -fpeephole2 \
-					# -fsched-spec -funroll-loops -falign-jumps -falign-loops -falign-labels -fdevirtualize -fcaller-saves -fcrossjumping  \
-					# -fthread-jumps -funroll-loops -flto -freorder-blocks -fschedule-insns -finline-functions -ftree-tail-merge \
-					# -fschedule-insns2 -fstrict-aliasing -fstrict-overflow -falign-functions -fcse-skip-blocks -fcse-follow-jumps -fsched-interblock -fpartial-inlining -fno-stack-protector -freorder-functions -findirect-inlining -fhoist-adjacent-loads -frerun-cse-after-loop -ftree-switch-conversion -foptimize-sibling-calls -funsafe-loop-optimizations -fdelete-null-pointer-checks
-CFLAGS=-Wpedantic -Wall -Wextra -Werror $(OPTIMIZES)
+OPTIMIZES=-Ofast -march=native -mtune=native -flto -funroll-loops
+CFLAGS=-Wpedantic -Wall -Wextra $(OPTIMIZES)
 
 # Simplify the target list below.
 
@@ -31,20 +27,12 @@ BLOCKCHAIN_TARGET=blockchain.out
 
 SUBMISSION_IMPL=Makefile blockchain.c
 SUBMISSION_TARGET=hw5.tar
-cores = $(shell cat /proc/cpuinfo | grep "model name" | uniq | grep "2690" | wc -L | tr -cd "[0-9]")
+DEFS=-DTHREAD_NUMS=20
 
-ifneq (${cores}, 0)
-	DEFS = -DTHREAD_NUMS=4
-else
-	DEFS = -DTHREAD_NUMS=20
-endif
 # Target for the blockchain implementation that will test your implementation.
 # Trigger this target by `make` or `make blockchain.out`.
 $(BLOCKCHAIN_TARGET): Makefile $(SHA256_HEADER) $(BLOCKCHAIN_HEADER) $(SHA256_IMPL) $(BLOCKCHAIN_IMPL) $(BLOCKCHAIN_TEST)
-	@echo "${cores}"
-	@echo ${DEFS}
-	# ${CC} ${CFLAGS} $(BLOCKCHAIN_IMPL) $(SHA256_IMPL) $(BLOCKCHAIN_TEST) -o $(BLOCKCHAIN_TARGET) -lpthread ${DEFS} -fprofile-generate && ./$(BLOCKCHAIN_TARGET) 24
-	${CC} ${CFLAGS} $(BLOCKCHAIN_IMPL) $(SHA256_IMPL) $(BLOCKCHAIN_TEST) -o $(BLOCKCHAIN_TARGET) -lpthread ${DEFS} # -fprofile-use -fprofile-correction
+	${CC} ${CFLAGS} $(BLOCKCHAIN_IMPL) $(SHA256_IMPL) $(BLOCKCHAIN_TEST) -o $(BLOCKCHAIN_TARGET) -lpthread ${DEFS}
 
 # Target for testing if the SHA256 implementation works on your computer.
 # Trigger this target by `make test-sha256.out`.

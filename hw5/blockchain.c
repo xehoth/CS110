@@ -116,22 +116,11 @@ void blockchain_node_mine(blk_t *node, unsigned char hash_buf[HASH_BLOCK_SIZE],
     }
     node->header.nonce++;
   }
-  printf("find %lu\n", node->header.nonce);
+  /*printf("find %lu\n", node->header.nonce);*/
 #else
   int i;
   pthread_t threads[THREAD_NUMS];  
   any_find_flag = 0;
-  switch (diff) {
-    case 20:
-      node->header.nonce += 200000;
-      break;
-    case 23:
-      node->header.nonce += 3000000;
-      break;
-    case 24:
-      node->header.nonce += 5000000;
-      break;
-  }
   
   for (i = 0; i < THREAD_NUMS; ++i) {
     memcpy(&threadData[i].header, &node->header, sizeof(blkh_t));
